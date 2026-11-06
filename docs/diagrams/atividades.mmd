@@ -1,0 +1,39 @@
+flowchart TB
+    classDef bar fill:#000,stroke:#000,color:#000;
+
+    I((●))
+
+    subgraph R1["Raia 1: Representante da Empresa"]
+        A1[Solicitar encerramento da vaga]
+        A2[Visualizar confirmação]
+        A3[Visualizar mensagem de erro]
+    end
+
+    subgraph R2["Raia 2: Sistema Back-End"]
+        B1[Validar situação da vaga e titularidade]
+        D1{Vaga PUBLICADA e solicitante autorizado?}
+        B2[Aplicar Vaga.encerrar com motivo]
+        F1[" "]:::bar
+        B3[Encerrar candidaturas ENVIADA e EM_ANALISE]
+        B4[Registrar histórico de auditoria]
+        J1[" "]:::bar
+        B5[Persistir Vaga em ENCERRADA]
+        B6[Publicar VagaEncerradaEvent]
+        B7[Retornar VagaResponseDTO]
+        B8[Retornar ErroDTO 409]
+    end
+
+    subgraph R3["Raia 3: Serviço de Notificação"]
+        N1[Consumir VagaEncerradaEvent]
+        N2[Criar notificação para cada candidato afetado]
+    end
+
+    F((◉))
+
+    I --> A1 --> B1 --> D1
+    D1 -->|"[situacao == PUBLICADA && solicitanteAutorizado]"| B2 --> F1
+    D1 -->|"[situacao != PUBLICADA || !solicitanteAutorizado]"| B8 --> A3 --> F
+    F1 --> B3 --> J1
+    F1 --> B4 --> J1
+    J1 --> B5 --> B6 --> B7 --> A2 --> F
+    B6 -.->|assíncrono| N1 --> N2 --> F

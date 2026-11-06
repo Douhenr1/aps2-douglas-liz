@@ -1,0 +1,29 @@
+stateDiagram-v2
+    direction LR
+
+    [*] --> Rascunho : criar [empresaAprovada E perfilRepresentante] / registrarHistorico()
+
+    state Rascunho
+    Rascunho : entry / iniciarEdicao()
+    Rascunho : do / salvarAutomaticamente()
+    Rascunho : exit / registrarHistorico()
+
+    state Publicada {
+        [*] --> RecebendoCandidaturas
+        RecebendoCandidaturas --> AguardandoDecisao : prazoInscricaoExpira [prazoExpirado] / bloquearNovasCandidaturas()
+        AguardandoDecisao --> RecebendoCandidaturas : prorrogarPrazo [novoPrazoValido] / liberarCandidaturas()
+    }
+
+    state Encerrada
+    Encerrada : entry / publicarEvento()
+
+    state Descartada
+
+    Rascunho --> Publicada : publicar [camposObrigatoriosOk E prazoValido E empresaAprovada] / registrarHistorico()
+    Rascunho --> Descartada : descartar [solicitante = REPRESENTANTE] / registrarHistorico()
+
+    Publicada --> Encerrada : encerrar [solicitanteAutorizado] / encerrarCandidaturasAtivas()
+    Publicada --> Encerrada : vagaPreenchida [aprovadas = quantidadeVagas] / encerrarCandidaturasAtivas()
+
+    Encerrada --> [*]
+    Descartada --> [*]

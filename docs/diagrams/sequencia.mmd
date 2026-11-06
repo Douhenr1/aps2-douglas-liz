@@ -1,0 +1,51 @@
+sequenceDiagram
+    autonumber
+    actor Rep as Representante
+    participant Ctrl as VagaController
+    participant Svc as VagaService
+    participant VagaRepo as VagaRepository
+    participant VagaE as Vaga
+    participant CandSvc as CandidaturaService
+    participant CandRepo as CandidaturaRepository
+    participant CandE as Candidatura
+    participant Hist as HistoricoService
+    participant Broker as BrokerMensagens
+    participant Notif as NotificacaoService
+
+    Rep->>Ctrl: PATCH /vagas/{id}/encerramento (EncerramentoRequestDTO)
+    Ctrl->>Svc: encerrar(vagaId, EncerramentoRequestDTO)
+    Svc->>VagaRepo: buscarPorIdComBloqueio(vagaId)
+    VagaRepo-->>Svc: Vaga
+
+    alt vaga não está PUBLICADA OU solicitante não pertence à empresa
+        Svc-->>Ctrl: TransicaoInvalidaException
+        Ctrl-->>Rep: 409 ErroDTO
+    else encerramento permitido
+        Svc->>VagaE: encerrar(motivo)
+        VagaE-->>Svc: Vaga [ENCERRADA]
+
+        par encerrar candidaturas ativas
+            Svc->>CandSvc: encerrarPorVaga(vagaId)
+            CandSvc->>CandRepo: listarAtivasPorVaga(vagaId)
+            CandRepo-->>CandSvc: Candidatura[]
+            loop para cada candidatura ativa
+                CandSvc->>CandE: encerrar()
+                CandE-->>CandSvc: Candidatura [ENCERRADA]
+                CandSvc->>CandRepo: salvar(Candidatura)
+            end
+            CandSvc-->>Svc: ResumoEncerramentoDTO
+        and registrar auditoria
+            Svc->>Hist: registrar(HistoricoDTO)
+        end
+
+        Svc->>VagaRepo: salvar(Vaga)
+        VagaRepo-->>Svc: Vaga [ENCERRADA]
+        Svc-)Broker: publicar(VagaEncerradaEvent)
+        Svc-->>Ctrl: VagaResponseDTO
+        Ctrl-->>Rep: 200 VagaResponseDTO
+    end
+
+    Broker-)Notif: consumir(VagaEncerradaEvent)
+    loop para cada candidato afetado
+        Notif->>Notif: criarNotificacao(NotificacaoDTO)
+    end

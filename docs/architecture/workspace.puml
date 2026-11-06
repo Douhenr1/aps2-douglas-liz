@@ -1,0 +1,34 @@
+@startuml workspace
+!include <C4/C4_Component>
+LAYOUT_WITH_LEGEND()
+title Componentes: API Back-End, Gestão de Vagas (UniSenai)
+
+Container(spa, "SPA", "React", "Interface web do representante")
+ContainerDb(db, "Banco de Dados", "PostgreSQL 16", "Vagas, candidaturas, histórico")
+ContainerQueue(mq, "Broker de Mensagens", "RabbitMQ", "Eventos de domínio")
+Container(worker, "Serviço de Notificação", "Node.js (worker)", "Cria notificações internas")
+
+Container_Boundary(api, "API Back-End (Node.js + Express)") {
+    Component(vctrl, "VagaController", "Express Router", "Expõe a API REST de vagas")
+    Component(vsvc, "VagaService", "TypeScript", "Regras de negócio e máquina de estados da Vaga")
+    Component(csvc, "CandidaturaService", "TypeScript", "Encerra candidaturas ativas de uma vaga")
+    Component(hsvc, "HistoricoService", "TypeScript", "Auditoria das transições de estado")
+    Component(vrepo, "VagaRepository", "node-postgres", "Persistência e bloqueio de vagas")
+    Component(crepo, "CandidaturaRepository", "node-postgres", "Persistência de candidaturas")
+    Component(pub, "BrokerMensagens", "amqplib", "Publica eventos de domínio")
+}
+
+Rel(spa, vctrl, "PATCH /vagas/{id}/encerramento", "REST/JSON, HTTPS")
+Rel(vctrl, vsvc, "encerrar()", "Chamada de método")
+Rel(vsvc, vrepo, "buscarPorIdComBloqueio(), salvar()", "Chamada de método")
+Rel(vsvc, csvc, "encerrarPorVaga()", "Chamada de método")
+Rel(vsvc, hsvc, "registrar()", "Chamada de método")
+Rel(vsvc, pub, "publicar()", "Chamada de método")
+Rel(csvc, crepo, "listarAtivasPorVaga(), salvar()", "Chamada de método")
+Rel(vrepo, db, "Lê e grava", "SQL/TCP (pg)")
+Rel(crepo, db, "Lê e grava", "SQL/TCP (pg)")
+Rel(hsvc, db, "Grava histórico", "SQL/TCP (pg)")
+Rel(pub, mq, "VagaEncerradaEvent", "AMQP 0-9-1")
+Rel(mq, worker, "Entrega eventos", "AMQP 0-9-1")
+Rel(worker, db, "Grava notificações", "SQL/TCP (pg)")
+@enduml
